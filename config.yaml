@@ -1,0 +1,45 @@
+# AI Face Mask Detection System Configuration
+
+project:
+  name: "AI Face Mask Detector & Safety Monitoring System"
+  version: "1.0.0"
+
+dataset:
+  hf_repo: "hlydecker/face-masks"
+  raw_dir: "data/raw/face-masks"
+  processed_dir: "data/processed/face-masks-yolo"
+  yolo_yaml: "data/processed/face-masks-yolo/data.yaml"
+
+classes:
+  target_names:
+    0: "with_mask"
+    1: "without_mask"
+
+training:
+  base_model: "yolov8n.pt" # Ultralytics lightweight Nano model
+  model_output_dir: "models"
+  best_weights: "models/best.pt"
+  img_size: 640
+  batch_size: 16
+  epochs: 10
+  workers: 4
+  device: "cpu"
+
+inference:
+  conf_threshold: 0.45
+  iou_threshold: 0.50
+  img_size: 640
+
+stability:
+  history_len: 7
+  ewma_alpha: 0.35
+  hysteresis_safe_threshold: 0.70
+  hysteresis_unsafe_threshold: 0.35
+  max_stale_seconds: 1.5
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
