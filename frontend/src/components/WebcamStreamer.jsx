@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-const API_PREDICT_URL = 'http://localhost:8000/api/v1/mask-detection/predict';
+const BACKEND_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : 'http://localhost:8000';
+const API_PREDICT_URL = `${BACKEND_URL}/api/v1/mask-detection/predict`;
 
 export default function WebcamStreamer({ isStreaming, onPredictionUpdate, isMirrored = false }) {
   const videoRef = useRef(null);
