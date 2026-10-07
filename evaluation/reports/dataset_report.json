@@ -1,0 +1,26 @@
+{
+  "dataset_repo": "hlydecker/face-masks",
+  "splits": {
+    "train": {
+      "images": 316,
+      "labels": 316,
+      "bounding_boxes": 432
+    },
+    "val": {
+      "images": 332,
+      "labels": 332,
+      "bounding_boxes": 464
+    },
+    "test": {
+      "images": 2740,
+      "labels": 3662,
+      "bounding_boxes": 5280
+    }
+  },
+  "total_images": 3388,
+  "total_annotations": 6176,
+  "class_distribution": {
+    "0 (with_mask / SAFE)": 2958,
+    "1 (without_mask / UNSAFE)": 3218
+  }
+}
