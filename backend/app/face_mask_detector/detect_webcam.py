@@ -24,14 +24,50 @@ from backend.app.face_mask_detector.utils import draw_hud_header, draw_face_box,
 from backend.app.face_mask_detector.train import generate_smart_weights
 
 def load_face_detector():
-    cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    if not os.path.exists(cascade_path):
-        cascade_path = 'haarcascade_frontalface_default.xml'
+    cascade_cls = getattr(cv2, 'CascadeClassifier', None)
+    if cascade_cls is None:
+        if hasattr(cv2, 'objdetect'):
+            cascade_cls = getattr(cv2.objdetect, 'CascadeClassifier', None)
     
-    face_cascade = cv2.CascadeClassifier(cascade_path)
-    if face_cascade.empty():
+    if cascade_cls is None:
+        print("[WARNING] OpenCV CascadeClassifier class not found.")
         return None
-    return face_cascade
+
+    # Search paths for haarcascade_frontalface_default.xml
+    candidate_paths = []
+    
+    # 1. Inside current module directory
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+    candidate_paths.append(os.path.join(module_dir, 'haarcascade_frontalface_default.xml'))
+
+    # 2. In repository root or working directory
+    if 'workspace_root' in globals() and workspace_root:
+        candidate_paths.append(os.path.join(workspace_root, 'haarcascade_frontalface_default.xml'))
+    candidate_paths.append(os.path.join(os.getcwd(), 'haarcascade_frontalface_default.xml'))
+
+    # 3. From cv2.data if available
+    cv2_data = getattr(cv2, 'data', None)
+    if cv2_data and hasattr(cv2_data, 'haarcascades'):
+        candidate_paths.append(os.path.join(cv2_data.haarcascades, 'haarcascade_frontalface_default.xml'))
+
+    for path in candidate_paths:
+        if path and os.path.exists(path):
+            try:
+                face_cascade = cascade_cls(path)
+                if face_cascade is not None and not face_cascade.empty():
+                    return face_cascade
+            except Exception as e:
+                print(f"[WARNING] Could not load cascade from {path}: {e}")
+
+    # Fallback to direct load
+    try:
+        face_cascade = cascade_cls('haarcascade_frontalface_default.xml')
+        if face_cascade is not None and not face_cascade.empty():
+            return face_cascade
+    except Exception:
+        pass
+
+    return None
 
 def load_mask_model(model_path="mask_detector_model.pth"):
     """
