@@ -29,8 +29,8 @@ def ensure_clean_opencv():
         print("[AUTO-FIX] CascadeClassifier missing in cv2. Attempting auto-recovery...")
         try:
             import subprocess
-            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python", "opencv-contrib-python"], check=False)
-            subprocess.run([sys.executable, "-m", "pip", "install", "--force-reinstall", "opencv-python-headless>=4.8.0"], check=False)
+            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python", "opencv-contrib-python", "opencv-python-headless"], check=False)
+            subprocess.run([sys.executable, "-m", "pip", "install", "--force-reinstall", "opencv-python-headless>=4.8.0,<5.0.0"], check=False)
             import importlib
             importlib.invalidate_caches()
             if 'cv2' in sys.modules:
