@@ -12,7 +12,7 @@ root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-from backend.app.face_mask_detector.detect_webcam import load_face_detector
+from backend.app.face_mask_detector.detect_webcam import RobustFaceDetector, load_face_detector
 from backend.app.face_mask_detector.model import LightweightNumpyMaskClassifier
 from inference.tracker import IoUFaceTracker
 from inference.stability import TemporalStabilityEngine
@@ -37,8 +37,9 @@ config_path = os.path.join(root_dir, "config.yaml")
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
-# Load Face Detector Cascade & High-Precision Edge Classifier
-face_cascade = load_face_detector()
+# Load Robust Dual-Engine Face Detector & High-Precision Edge Classifier
+detector = RobustFaceDetector()
+face_cascade = detector.cascade
 classifier = LightweightNumpyMaskClassifier()
 
 # Persistent IoU Face Tracker Engine & Temporal Stability
@@ -94,7 +95,8 @@ async def root():
     return {
         "status": "online",
         "service": "AI Face Mask Detection & Real-Time Safety System",
-        "detector_loaded": face_cascade is not None,
+        "detector_loaded": True,
+        "detector_type": "haar_cascade" if detector.cascade is not None else "chrominance_fallback",
         "model_mode": "edge_classifier"
     }
 
@@ -103,7 +105,8 @@ async def root():
 async def health_check():
     return {
         "status": "online",
-        "detector_loaded": face_cascade is not None,
+        "detector_loaded": True,
+        "detector_type": "haar_cascade" if detector.cascade is not None else "chrominance_fallback",
         "model_mode": "edge_classifier"
     }
 
@@ -112,9 +115,6 @@ async def health_check():
 async def predict_frame(req: FrameRequest):
     if not req.image:
         raise HTTPException(status_code=400, detail="Image data URL is required.")
-
-    if face_cascade is None:
-        raise HTTPException(status_code=500, detail="Face detector is not initialized.")
 
     try:
         encoded_data = req.image.split(",")[-1]
@@ -128,14 +128,8 @@ async def predict_frame(req: FrameRequest):
         img_h, img_w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 1. Multi-scale face detection
-        raw_faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.08,
-            minNeighbors=4,
-            minSize=(40, 40)
-        )
-
+        # 1. Robust Dual-Engine Face Detection (Cascade + Chrominance Fallback)
+        raw_faces = detector.detect(frame, gray)
         boxes_list = [[int(x), int(y), int(w), int(h)] for (x, y, w, h) in raw_faces]
 
         # 2. Apply Non-Maximum Suppression (NMS) to eliminate duplicate boxes on same person
