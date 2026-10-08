@@ -95,8 +95,8 @@ async def root():
     return {
         "status": "online",
         "service": "AI Face Mask Detection & Real-Time Safety System",
-        "detector_loaded": True,
-        "detector_type": "haar_cascade" if detector.cascade is not None else "chrominance_fallback",
+        "detector_loaded": detector.cascade is not None,
+        "detector_type": "haar_cascade" if detector.cascade is not None else "unavailable",
         "model_mode": "edge_classifier"
     }
 
@@ -105,9 +105,20 @@ async def root():
 async def health_check():
     return {
         "status": "online",
-        "detector_loaded": True,
-        "detector_type": "haar_cascade" if detector.cascade is not None else "chrominance_fallback",
+        "detector_loaded": detector.cascade is not None,
+        "detector_type": "haar_cascade" if detector.cascade is not None else "unavailable",
         "model_mode": "edge_classifier"
+    }
+
+@app.get("/debug")
+async def debug_diagnostics():
+    import cv2, sys, subprocess
+    return {
+        "cv2_version": getattr(cv2, '__version__', None),
+        "cv2_file": getattr(cv2, '__file__', None),
+        "has_CascadeClassifier": hasattr(cv2, 'CascadeClassifier'),
+        "cascade_is_none": detector.cascade is None,
+        "python_version": sys.version
     }
 
 @app.post("/predict")

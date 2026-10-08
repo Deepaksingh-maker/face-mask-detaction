@@ -23,7 +23,25 @@ from backend.app.face_mask_detector.model import MaskDetectorNet, preprocess_fac
 from backend.app.face_mask_detector.utils import draw_hud_header, draw_face_box, draw_status_summary
 from backend.app.face_mask_detector.train import generate_smart_weights
 
+def ensure_clean_opencv():
+    global cv2
+    if not hasattr(cv2, 'CascadeClassifier'):
+        print("[AUTO-FIX] CascadeClassifier missing in cv2. Attempting auto-recovery...")
+        try:
+            import subprocess
+            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python", "opencv-contrib-python"], check=False)
+            subprocess.run([sys.executable, "-m", "pip", "install", "--force-reinstall", "opencv-python-headless>=4.8.0"], check=False)
+            import importlib
+            importlib.invalidate_caches()
+            if 'cv2' in sys.modules:
+                del sys.modules['cv2']
+            import cv2
+            print("[AUTO-FIX] Recovery complete. CascadeClassifier:", hasattr(cv2, 'CascadeClassifier'))
+        except Exception as e:
+            print(f"[AUTO-FIX ERROR] {e}")
+
 def load_face_detector():
+    ensure_clean_opencv()
     cascade_cls = getattr(cv2, 'CascadeClassifier', None)
     if cascade_cls is None and hasattr(cv2, 'objdetect'):
         cascade_cls = getattr(cv2.objdetect, 'CascadeClassifier', None)
@@ -70,78 +88,36 @@ def load_face_detector():
 
 class RobustFaceDetector:
     """
-    Dual-Engine Face Detector:
-    1. Primary: OpenCV Haar Cascade frontalface classifier.
-    2. Intelligent Fallback: Skin-chrominance (YCrCb/HSV) contour segmentation & webcam center-prior.
-    Guarantees that face detection NEVER returns empty or fails to initialize.
+    High-Precision Face Detector Engine:
+    Exclusively uses Haar Cascade frontalface classifier with optimal parameters
+    (scaleFactor=1.06, minNeighbors=3, minSize=(30, 30)) for accurate, tight facial bounding boxes.
     """
     def __init__(self):
         self.cascade = load_face_detector()
         if self.cascade is not None:
             print("[INFO] Primary Haar Cascade Face Detector loaded successfully.")
-        else:
-            print("[INFO] Fallback Chrominance Face Detector active.")
 
     def detect(self, frame, gray=None):
-        img_h, img_w = frame.shape[:2]
         boxes = []
+        if self.cascade is None:
+            self.cascade = load_face_detector()
 
-        # 1. Try Primary Haar Cascade
         if self.cascade is not None:
             try:
                 if gray is None:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 raw_faces = self.cascade.detectMultiScale(
                     gray,
-                    scaleFactor=1.08,
+                    scaleFactor=1.06,
                     minNeighbors=3,
-                    minSize=(35, 35)
+                    minSize=(30, 30)
                 )
                 if len(raw_faces) > 0:
                     boxes = [[int(x), int(y), int(w), int(h)] for (x, y, w, h) in raw_faces]
             except Exception as e:
                 print(f"[CASCADE INFERENCE ERROR] {e}")
 
-        if len(boxes) > 0:
-            return boxes
-
-        # 2. Intelligent Chrominance + Contour Segmentation Fallback
-        try:
-            ycrcb = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
-            # Skin chromaticity range in YCrCb space: Cr in [133, 173], Cb in [77, 127]
-            skin_mask = cv2.inRange(ycrcb, np.array([0, 133, 77], dtype=np.uint8), np.array([255, 173, 127], dtype=np.uint8))
-            
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, kernel, iterations=1)
-            skin_mask = cv2.dilate(skin_mask, kernel, iterations=2)
-            
-            contours, _ = cv2.findContours(skin_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            min_area = (img_h * img_w) * 0.015 # At least 1.5% of the frame
-            
-            candidates = []
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area < min_area:
-                    continue
-                x, y, w, h = cv2.boundingRect(cnt)
-                aspect_ratio = float(h) / max(w, 1)
-                # Face aspect ratio typically 0.75 to 1.9
-                if 0.75 <= aspect_ratio <= 1.9:
-                    candidates.append([x, y, w, h, area])
-                    
-            if len(candidates) > 0:
-                candidates.sort(key=lambda b: b[4], reverse=True)
-                boxes = [[b[0], b[1], b[2], b[3]] for b in candidates[:3]]
-                return boxes
-        except Exception as e:
-            print(f"[FALLBACK DETECTOR ERROR] {e}")
-
-        # 3. Center WebCam Prior Fallback (User seated facing camera)
-        fw = int(img_w * 0.40)
-        fh = int(img_h * 0.50)
-        fx = max(0, int((img_w - fw) / 2))
-        fy = max(0, int((img_h - fh) / 3))
-        return [[fx, fy, fw, fh]]
+        return boxes
 
 def load_mask_model(model_path="mask_detector_model.pth"):
     """
