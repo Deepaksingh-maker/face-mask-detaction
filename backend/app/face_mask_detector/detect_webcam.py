@@ -25,18 +25,8 @@ from backend.app.face_mask_detector.train import generate_smart_weights
 
 def load_face_detector():
     cascade_cls = getattr(cv2, 'CascadeClassifier', None)
-    if cascade_cls is None:
-        try:
-            import cv2.objdetect as objdetect
-            cascade_cls = getattr(objdetect, 'CascadeClassifier', None)
-        except Exception:
-            pass
-    if cascade_cls is None:
-        try:
-            from cv2 import CascadeClassifier as CC
-            cascade_cls = CC
-        except Exception:
-            pass
+    if cascade_cls is None and hasattr(cv2, 'objdetect'):
+        cascade_cls = getattr(cv2.objdetect, 'CascadeClassifier', None)
     
     if cascade_cls is None:
         print("[WARNING] OpenCV CascadeClassifier class not found.")
